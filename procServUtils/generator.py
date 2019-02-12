@@ -9,15 +9,19 @@ def write_service(F, conf, sect, user=False):
         'group':conf.get(sect, 'group'),
         'chdir':conf.get(sect, 'chdir'),
         'command':conf.get(sect, 'command'),
+        'port':conf.get(sect, 'port'),
         'userarg':'--user' if user else '--system',
     }
 
+    opts['e3_require_bin'] = os.environ['E3_REQUIRE_BIN']
+    print(opts['e3_require_bin'])
+
     F.write("""
 [Unit]
-Description=procServ for %(name)s
+Description=procServ for {name}
 After=network.target remote-fs.target
-ConditionPathIsDirectory=%(chdir)s
-"""%opts)
+ConditionPathIsDirectory={chdir}
+""".format(**opts))
 
     if conf.has_option(sect, 'host'):
         F.write('ConditionHost=%s\n'%conf.get(sect, 'host'))
@@ -25,23 +29,29 @@ ConditionPathIsDirectory=%(chdir)s
     F.write("""
 [Service]
 Type=simple
-ExecStart=/usr/bin/procServ-launcher %(userarg)s %(command)s
-RuntimeDirectory=procserv-%(name)s
-StandardOutput=syslog
-StandardError=inherit
-SyslogIdentifier=procserv-%(name)s
-"""%opts)
+ExecStart=/usr/bin/procServ \\
+                    --foreground \\
+                    --logport=/var/log/procServ/out-{name} \\
+                    --ignore=^C^D \\
+                    --chdir={chdir} \\
+                    --name={name} \\
+                    --port={port} \\
+                    {e3_require_bin}/iocsh.bash \\
+                    {command}
+                    
+SyslogIdentifier=procserv-{name}
+""".format(**opts))
 
     if not user:
         F.write("""
-User=%(user)s
-Group=%(group)s
-"""%opts)
+User={user}
+Group={group}
+""".format(**opts))
 
     F.write("""
 [Install]
 WantedBy=multi-user.target
-"""%opts)
+""")
 
 def run(outdir, user=False):
     conf = getconf(user=user)

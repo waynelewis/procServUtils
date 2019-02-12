@@ -117,6 +117,7 @@ chdir = %(chdir)s
 
         if args.username: F.write("user = %s\n"%args.username)
         if args.group: F.write("group = %s\n"%args.group)
+        if args.host: F.write("host = %s\n"%args.host)
         if args.port: F.write("port = %s\n"%args.port)
 
     os.rename(cfile+'.tmp', cfile)
@@ -225,6 +226,7 @@ def getargs():
     S.add_argument('-P','--port', help='telnet port')
     S.add_argument('-U','--user', dest='username')
     S.add_argument('-G','--group')
+    S.add_argument('-H','--host', help='Target IOC hostname', default='localhost')
     S.add_argument('-f','--force', action='store_true', default=False)
     S.add_argument('-A','--autostart',action='store_true', default=False,
                    help='Automatically start after adding')
