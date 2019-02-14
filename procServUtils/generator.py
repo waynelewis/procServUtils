@@ -13,8 +13,19 @@ def write_service(F, conf, sect, user=False):
         'userarg':'--user' if user else '--system',
     }
 
-    opts['e3_require_bin'] = os.environ['E3_REQUIRE_BIN']
-    print(opts['e3_require_bin'])
+
+    # Set default value for iocsh command
+    opts['iocsh_cmd'] = ""
+
+    # See if we should use a site-specific iocsh command
+    if conf.has_option(sect, 'site'):
+        if conf.get(sect, 'site') == "ess-e3":
+            try:
+                e3_require_bin = os.environ['E3_REQUIRE_BIN']
+                opts['iocsh_cmd'] = "{}/{}".format(e3_require_bin, "iocsh.bash")
+            except KeyError:
+                print("Please source the desired setE3Env.bash, then rerun this command")
+                sys.exit()
 
     F.write("""
 [Unit]
@@ -31,13 +42,18 @@ ConditionPathIsDirectory={chdir}
 Type=simple
 ExecStart=/usr/bin/procServ \\
                     --foreground \\
-                    --logport=/var/log/procServ/out-{name} \\
+                    --logfile=/var/log/procServ/out-{name} \\
                     --ignore=^C^D \\
                     --chdir={chdir} \\
                     --name={name} \\
                     --port={port} \\
-                    {e3_require_bin}/iocsh.bash \\
-                    {command}
+""".format(**opts))
+
+    if opts['iocsh_cmd'] != '':
+        F.write("""                    {iocsh_cmd} \\
+""".format(**opts))
+
+    F.write("""                    {command}
                     
 SyslogIdentifier=procserv-{name}
 """.format(**opts))
