@@ -10,5 +10,7 @@ setup(
         'manage-procs',
         'procServ-launcher',
         'prtelnet',
+	'systemd-procserv-generator-system',
+	'systemd-procserv-generator-user',
     ],
 )
