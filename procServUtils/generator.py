@@ -13,6 +13,10 @@ def write_service(F, conf, sect, user=False):
         'userarg':'--user' if user else '--system',
     }
 
+    if 'tcp:' in opts['port']:
+        print(opts['port'])
+        opts['port'] = opts['port'].split(':')[1]
+        print(opts['port'])
 
     # Set default value for iocsh command
     opts['iocsh_cmd'] = ""
