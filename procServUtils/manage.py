@@ -187,10 +187,25 @@ def writeprocs(conf, args):
     with open(args.out+'.tmp', 'w') as F:
         for name in conf.sections():
             opts['name'] = name
+            port_string = conf.get(name, 'port')
+            if 'tcp:' in port_string:
+                opts['tcp_port'] = port_string.split(':')[1]
+            if port_string.isdigit():
+                opts['tcp_port'] = port_string
+
             F.write("""
 console %(name)s {
     master localhost;
-    type uds;
+"""%opts)
+
+            if 'tcp_port' in opts.keys():
+                F.write("""    type host;
+    host localhost;
+    port %(tcp_port)s;
+}
+"""%opts)
+            else:
+                F.write("""    type uds;
     uds %(rundir)s/procserv-%(name)s/control;
 }
 """%opts)
