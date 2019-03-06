@@ -3,6 +3,7 @@ import logging
 _log = logging.getLogger(__name__)
 
 import sys, os, errno
+import pwd, grp
 import subprocess as SP
 
 from .conf import getconf, getrundir, getgendir
@@ -77,11 +78,16 @@ def syslist(conf, args):
                     'list-units', 'procserv-*'])
 
 def addproc(conf, args):
+    import socket
+    from configparser import ConfigParser
+    site_conf = ConfigParser()
+
     outdir = getgendir(user=args.user)
     cfile = os.path.join(outdir, '%s.conf'%args.name)
 
     if os.path.exists(cfile) and not args.force:
         _log.error("Instance already exists @ %s", cfile)
+        _log.error("Use -f (--force) to overwrite")
         sys.exit(1)
 
     #if conf.has_section(args.name):
@@ -97,14 +103,59 @@ def addproc(conf, args):
 
     _log.info("Writing: %s", cfile)
 
-    # ensure chdir is an absolute path
-    args.chdir = os.path.abspath(os.path.join(os.getcwd(), args.chdir))
+    # Try reading in the site default file
+    if args.site is not None:
+        try:
+            conf_path = os.path.join(os.getcwd(), 'conf')
+            conf_path = os.path.join(conf_path, args.site+'.conf')
 
-    args.command[0] = os.path.abspath(os.path.join(args.chdir, args.command[0]))
+            site_conf = ConfigParser()
+            site_conf.read(conf_path)
+
+            # Populate expected variables
+            args.username = site_conf[args.site]['user']
+            args.group = site_conf[args.site]['group']
+            if 'host' not in site_conf[args.site].keys():
+                args.host = socket.gethostname()
+            else:
+                args.host = site_conf[args.site]['host']
+        except FileNotFoundError:
+            _log.exception('No available site config file for {}'.format(args.site))
+        except KeyError as e:
+            _log.exception('Expected key not found')
+
+    # Set command
+    if args.command is not None:
+        args.command[0] = os.path.abspath(os.path.join(args.chdir, args.command[0]))
+
+    # Set chdir
+    if site_conf[args.site]['base_dir'] is not None:
+        # Site specific options
+        if args.site == 'ess-e3':
+            args.chdir = os.path.join(site_conf[args.site]['base_dir'], args.name)
+            args.command = 'st.{}.cmd'.format(args.name)
+            port_dir = 'procserv-{}'.format(args.name)
+            args.port = 'unix:{}'.format(os.path.join(
+                getrundir(), port_dir, 'control'))
+            try:
+                os.mkdir(os.path.join(getrundir(), port_dir))
+            except OSError:
+                pass
+            try:
+
+                uid = pwd.getpwnam(args.username).pw_uid
+                gid = grp.getgrnam(args.group).gr_gid
+                os.chown(os.path.join(getrundir(), port_dir), uid, gid)
+            except OSError:
+                pass
+
+    else:
+        args.chdir = os.path.abspath(os.path.join(os.getcwd(), args.chdir))
+        args.command = ' '.join(map(shlex.quote, args.command))
 
     opts = {
         'name':args.name,
-        'command': ' '.join(map(shlex.quote, args.command)),
+        'command':args.command,
         'chdir':args.chdir,
     }
 
@@ -247,8 +298,9 @@ def getargs():
     S.add_argument('-f','--force', action='store_true', default=False)
     S.add_argument('-A','--autostart',action='store_true', default=False,
                    help='Automatically start after adding')
+    S.add_argument('--command', help='Command script or executable, without path (chdir is added later)')
     S.add_argument('name', help='Instance name')
-    S.add_argument('command', nargs='+', help='Command script or executable, without path (chdir is added later)')
+    #S.add_argument('command', nargs='+', help='Command script or executable, without path (chdir is added later)')
     S.set_defaults(func=addproc)
 
     S = SP.add_parser('remove', help='Remove a procServ instance')

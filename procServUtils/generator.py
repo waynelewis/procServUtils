@@ -59,7 +59,7 @@ ExecStart=/usr/bin/procServ \\
 
     F.write("""                    {command}
                     
-SyslogIdentifier=procserv-{name}
+SyslogIdentifier=ioc@{name}
 """.format(**opts))
 
     if not user:
@@ -88,7 +88,7 @@ def run(outdir, user=False):
     for sect in conf.sections():
         if not conf.getboolean(sect, 'instance'):
             continue
-        service = 'procserv-%s.service'%sect
+        service = 'ioc@%s.service'%sect
         ofile = os.path.join(outdir, service)
         with open(ofile+'.tmp', 'w') as F:
             write_service(F, conf, sect, user=user)
