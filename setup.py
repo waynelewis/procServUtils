@@ -8,8 +8,8 @@ setup(
     packages = ['procServUtils'],
     scripts = [
         'manage-procs',
-        'procServ-launcher',
-        'prtelnet',
+        #'procServ-launcher',
+        #'prtelnet',
 	'systemd-procserv-generator-system',
 	'systemd-procserv-generator-user',
     ],
