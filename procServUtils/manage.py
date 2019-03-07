@@ -75,7 +75,7 @@ def status(conf, args, fp=None):
 def syslist(conf, args):
     SP.check_call([systemctl,
                     '--user' if args.user else '--system',
-                    'list-units', 'procserv-*'])
+                    'list-units', 'ioc@*'])
 
 def addproc(conf, args):
     import socket
