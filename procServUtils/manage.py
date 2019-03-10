@@ -9,6 +9,8 @@ import subprocess as SP
 from .conf import getconf, getrundir, getgendir
 from .generator import run as genrun
 
+from pkg_resources import resource_filename
+
 try:
     import shlex
 except ImportError:
@@ -112,7 +114,12 @@ def addproc(conf, args):
     # Try reading in the site default file
     if args.site is not None:
         try:
-            conf_path = os.path.join(os.getcwd(), 'conf')
+            # Firstly try to access a config file in the dist-packages (when installed)
+            conf_path = resource_filename(__name__, 'conf')
+            if not os.path.exists(conf_path):
+                # Whether it doesn't exist, try to access in the current directory
+                conf_path = os.path.join(os.getcwd(), 'conf')
+            # Then concatenate directory with selected site configuration file name
             conf_path = os.path.join(conf_path, args.site+'.conf')
 
             site_conf = ConfigParser()
@@ -187,8 +194,8 @@ chdir = %(chdir)s
         conf = getconf(user=args.user)
         # Adding writeconf default parameters
         #   - where to save configuration file of conserver;
-        #   - if should automatically reload the service;
-        args.out    = conserver_conf
+        #   - whether should automatically reload the service;
+        args.out = conserver_conf
         writeprocs(conf, args)
 
     # Check if should to re-write System-D service files
@@ -255,8 +262,8 @@ def delproc(conf, args):
         conf = getconf(user=args.user)
         # Adding writeconf default parameters
         #   - where to save configuration file of conserver;
-        #   - if should automatically reload the service;
-        args.out    = conserver_conf
+        #   - whether should automatically reload the service;
+        args.out = conserver_conf
         writeprocs(conf, args)
 
     # Check if should to re-write System-D service files

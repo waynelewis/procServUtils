@@ -8,8 +8,6 @@ try:
 except ImportError:
     from configparser import ConfigParser
 
-conserver_conf = '/etc/conserver/procs.cf'
-
 def getgendir(user=False):
     if user:
         return os.path.expanduser('~/.config/procServ.d')
