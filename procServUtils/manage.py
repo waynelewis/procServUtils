@@ -198,9 +198,9 @@ chdir = %(chdir)s
         args.out = conserver_conf
         writeprocs(conf, args)
 
-    # Check if should to re-write System-D service files
+    # Check if should to re-write systemd service files
     if args.writesysd:
-        _log.info('Trying to update System-D service files...')
+        _log.info('Trying to update systemd service files...')
         genrun(outdir=args.outsysd, user=args.user)
 
     # Daemon reloading
@@ -266,9 +266,9 @@ def delproc(conf, args):
         args.out = conserver_conf
         writeprocs(conf, args)
 
-    # Check if should to re-write System-D service files
+    # Check if should to re-write systemd service files
     if args.writesysd:
-        _log.info('Trying to update System-D service files...')
+        _log.info('Trying to update systemd service files...')
         genrun(outdir=args.outsysd, user=args.user)
 
     # Daemon reloading
@@ -353,7 +353,7 @@ def getargs():
                     help='Automatically update Conserver configuration')
     S.add_argument('-D', '--outsysd', default=systemd_dir)
     S.add_argument('-d', '--writesysd', action='store_true', default=True,
-                    help='Create System-D service files')
+                    help='Create systemd service files')
     S.add_argument('-R', '--reload', action='store_true', default=False,
                     help='Restart conserver-server')
     S.add_argument('--command', help='Command script or executable, without path (chdir is added later)')
@@ -367,7 +367,7 @@ def getargs():
                     help='Automatically update Conserver configuration')
     S.add_argument('-D', '--outsysd', default=systemd_dir)
     S.add_argument('-d', '--writesysd', action='store_true', default=True,
-                    help='Create System-D service files')
+                    help='Create systemd service files')
     S.add_argument('-R', '--reload', action='store_true', default=False,
                     help='Restart conserver-server')
     S.add_argument('name', help='Instance name')
