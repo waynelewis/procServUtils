@@ -1,5 +1,5 @@
 
-import sys, os, errno
+import sys, os, errno, glob
 from .conf import getconf
 
 def write_service(F, conf, sect, user=False):
@@ -76,6 +76,7 @@ WantedBy=multi-user.target
 
 def run(outdir, user=False):
     conf = getconf(user=user)
+    service_name_template = 'ioc@%s.service'
 
     wantsdir = os.path.join(outdir, 'multi-user.target.wants')
     try:
@@ -85,11 +86,19 @@ def run(outdir, user=False):
             _log.exception('Creating directory "%s"', wantsdir)
             raise
 
+    # Cleanup of the *.service files at first
+    serviceFilesList = glob.glob(os.path.join(outdir, service_name_template % '*'), recursive=True)
+    for serviceFile in serviceFilesList:
+        try:
+            os.remove(serviceFile)
+        except:
+            _log.debug("Error while trying to delete a service file: %s" % serviceFile)
 
+    # Create new service files according to configured procedures
     for sect in conf.sections():
         if not conf.getboolean(sect, 'instance'):
             continue
-        service = 'ioc@%s.service'%sect
+        service = service_name_template % sect
         ofile = os.path.join(outdir, service)
         with open(ofile+'.tmp', 'w') as F:
             write_service(F, conf, sect, user=user)

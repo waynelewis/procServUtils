@@ -7,6 +7,9 @@ import pwd, grp
 import subprocess as SP
 
 from .conf import getconf, getrundir, getgendir
+from .generator import run as genrun
+
+from pkg_resources import resource_filename
 
 try:
     import shlex
@@ -19,7 +22,12 @@ _levels = [
     logging.DEBUG,
 ]
 
-systemctl = '/bin/systemctl'
+# -----------------------------------------------------------------------------
+# Default parameters
+# -----------------------------------------------------------------------------
+systemctl       = '/bin/systemctl'
+conserver_conf  = '/etc/conserver/procs.cf'
+systemd_dir     = '/etc/systemd/system'
 
 def status(conf, args, fp=None):
     rundir=getrundir(user=args.user)
@@ -32,7 +40,7 @@ def status(conf, args, fp=None):
 
         pid = None
         ports = []
-        infoname = os.path.join(rundir, 'procserv-%s'%name, 'info')
+        infoname = os.path.join(rundir, 'ioc@%s'%name, 'info')
         try:
             with open(infoname) as F:
                 _log.debug('Read %s', F.name)
@@ -106,7 +114,12 @@ def addproc(conf, args):
     # Try reading in the site default file
     if args.site is not None:
         try:
-            conf_path = os.path.join(os.getcwd(), 'conf')
+            # Firstly try to access a config file in the dist-packages (when installed)
+            conf_path = resource_filename(__name__, 'conf')
+            if not os.path.exists(conf_path):
+                # Whether it doesn't exist, try to access in the current directory
+                conf_path = os.path.join(os.getcwd(), 'conf')
+            # Then concatenate directory with selected site configuration file name
             conf_path = os.path.join(conf_path, args.site+'.conf')
 
             site_conf = ConfigParser()
@@ -134,7 +147,7 @@ def addproc(conf, args):
         if args.site == 'ess-e3':
             args.chdir = os.path.join(site_conf[args.site]['base_dir'], args.name)
             args.command = 'st.{}.cmd'.format(args.name)
-            port_dir = 'procserv-{}'.format(args.name)
+            port_dir = 'ioc@{}'.format(args.name)
             args.port = 'unix:{}'.format(os.path.join(
                 getrundir(), port_dir, 'control'))
             try:
@@ -174,17 +187,36 @@ chdir = %(chdir)s
 
     os.rename(cfile+'.tmp', cfile)
 
+    # Check if should to re-write Conserver coniguration file
+    if args.writeconf:
+        _log.info('Trying to update conserver configuration...')
+        # Updating conserver config file due the previous procedures
+        conf = getconf(user=args.user)
+        # Adding writeconf default parameters
+        #   - where to save configuration file of conserver;
+        #   - whether should automatically reload the service;
+        args.out = conserver_conf
+        writeprocs(conf, args)
+
+    # Check if should to re-write systemd service files
+    if args.writesysd:
+        _log.info('Trying to update systemd service files...')
+        genrun(outdir=args.outsysd, user=args.user)
+
+    # Daemon reloading
     _log.info('Trigger systemd reload')
     SP.check_call([systemctl,
                    '--user' if args.user else '--system',
                    'daemon-reload'], shell=False)
 
+    # procServ restarting
     if args.autostart:
+        _log.info("Starting the service: ioc@%s.service" % args.name)
         SP.check_call([systemctl,
                        '--user' if args.user else '--system',
-                       'start', 'procserv-%s.service'%args.name])
+                       'start', 'ioc@%s.service' % args.name])
     else:
-        sys.stdout.write("# systemctl start procserv-%s.service\n"%args.name)
+        sys.stdout.write("# systemctl start ioc@%s.service\n"%args.name)
 
 def delproc(conf, args):
     from .conf import getconffiles, ConfigParser
@@ -223,12 +255,29 @@ def delproc(conf, args):
                 C.write(F)
             os.rename(cfile+'.tmp', cfile)
 
+    # Check if should to re-write Conserver coniguration file
+    if args.writeconf:
+        _log.info('Trying to update Conserver configuration file...')
+        # Updating conserver config file due the previous procedures
+        conf = getconf(user=args.user)
+        # Adding writeconf default parameters
+        #   - where to save configuration file of conserver;
+        #   - whether should automatically reload the service;
+        args.out = conserver_conf
+        writeprocs(conf, args)
+
+    # Check if should to re-write systemd service files
+    if args.writesysd:
+        _log.info('Trying to update systemd service files...')
+        genrun(outdir=args.outsysd, user=args.user)
+
+    # Daemon reloading
     _log.info('Trigger systemd reload')
     SP.check_call([systemctl,
                    '--user' if args.user else '--system',
                    'daemon-reload'], shell=False)
 
-    sys.stdout.write("# systemctl stop procserv-%s.service\n"%args.name)
+    sys.stdout.write("# systemctl stop ioc@%s.service\n"%args.name)
 
 def writeprocs(conf, args):
     opts = {
@@ -257,28 +306,30 @@ console %(name)s {
 """%opts)
             else:
                 F.write("""    type uds;
-    uds %(rundir)s/procserv-%(name)s/control;
+    uds %(rundir)s/ioc@%(name)s/control;
 }
 """%opts)
 
     os.rename(args.out+'.tmp', args.out)
 
+    # Reloading conserver-server
     if args.reload:
         _log.debug('Reloading conserver-server')
         SP.check_call([systemctl,
                     '--user' if args.user else '--system',
-                    'reload', 'conserver-server.service'], shell=False)
+                    'restart', 'conserver'], shell=False)
     else:
-        sys.stdout.write('# systemctl reload conserver-server.service\n')
+        sys.stdout.write('# systemctl restart conserver\n')
 
 def getargs():
     from argparse import ArgumentParser
+
     P = ArgumentParser()
     P.add_argument('--user', action='store_true', default=os.geteuid()!=0,
                    help='Consider user config')
     P.add_argument('--system', dest='user', action='store_false',
                    help='Consider system config')
-    P.add_argument('-v','--verbose', action='count', default=0)
+    P.add_argument('-v', '--verbose', action='count', default=0)
 
     SP = P.add_subparsers()
 
@@ -289,34 +340,50 @@ def getargs():
     S.set_defaults(func=syslist)
 
     S = SP.add_parser('add', help='Create a new procServ instance')
-    S.add_argument('-C','--chdir', default=os.getcwd(), help='Run directory for instance')
-    S.add_argument('-P','--port', help='telnet port')
-    S.add_argument('-U','--user', dest='username')
-    S.add_argument('-G','--group')
-    S.add_argument('-H','--host', help='Target IOC hostname', default='localhost')
-    S.add_argument('-S','--site', help='Allow site-specific configuration')
-    S.add_argument('-f','--force', action='store_true', default=False)
-    S.add_argument('-A','--autostart',action='store_true', default=False,
-                   help='Automatically start after adding')
+    S.add_argument('-C', '--chdir', default=os.getcwd(), help='Run directory for instance')
+    S.add_argument('-P', '--port', help='telnet port')
+    S.add_argument('-U', '--user', dest='username')
+    S.add_argument('-G', '--group')
+    S.add_argument('-H', '--host', help='Target IOC hostname', default='localhost')
+    S.add_argument('-S', '--site', help='Allow site-specific configuration')
+    S.add_argument('-f', '--force', action='store_true', default=False)
+    S.add_argument('-A', '--autostart',action='store_true', default=False,
+                    help='Automatically start the service after adding it')
+    S.add_argument('-w', '--writeconf', action='store_true', default=True,
+                    help='Automatically update Conserver configuration')
+    S.add_argument('-D', '--outsysd', default=systemd_dir)
+    S.add_argument('-d', '--writesysd', action='store_true', default=True,
+                    help='Create systemd service files')
+    S.add_argument('-R', '--reload', action='store_true', default=False,
+                    help='Restart conserver-server')
     S.add_argument('--command', help='Command script or executable, without path (chdir is added later)')
     S.add_argument('name', help='Instance name')
     #S.add_argument('command', nargs='+', help='Command script or executable, without path (chdir is added later)')
     S.set_defaults(func=addproc)
 
     S = SP.add_parser('remove', help='Remove a procServ instance')
-    S.add_argument('-f','--force', action='store_true', default=False)
+    S.add_argument('-f', '--force', action='store_true', default=False)
+    S.add_argument('-w', '--writeconf', action='store_true', default=True,
+                    help='Automatically update Conserver configuration')
+    S.add_argument('-D', '--outsysd', default=systemd_dir)
+    S.add_argument('-d', '--writesysd', action='store_true', default=True,
+                    help='Create systemd service files')
+    S.add_argument('-R', '--reload', action='store_true', default=False,
+                    help='Restart conserver-server')
     S.add_argument('name', help='Instance name')
     S.set_defaults(func=delproc)
 
     S = SP.add_parser('write-procs-cf', help='Write conserver config')
-    S.add_argument('-f','--out',default='/etc/conserver/procs.cf') 
-    S.add_argument('-R','--reload', action='store_true', default=False)
+    S.add_argument('-f', '--out', default=conserver_conf)
+    S.add_argument('-R', '--reload', action='store_true', default=False,
+                    help='Restart conserver-server')
     S.set_defaults(func=writeprocs)
 
     A = P.parse_args()
     if not hasattr(A, 'func'):
         P.print_help()
         sys.exit(1)
+
     return A
 
 def main(args):
