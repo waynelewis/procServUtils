@@ -47,7 +47,7 @@ Type=simple
 ExecStart=/usr/bin/procServ \\
                     --foreground \\
                     --logfile=/var/log/procServ/out-{name} \\
-                    --info-file=/run/procserv-{name}/info \\
+                    --info-file=/run/ioc@{name}/info \\
                     --ignore=^C^D \\
                     --chdir={chdir} \\
                     --name={name} \\
