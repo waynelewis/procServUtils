@@ -43,8 +43,6 @@ ConditionPathIsDirectory={chdir}
 
     F.write("""
 [Service]
-ExecStartPre=-+/bin/mkdir /run/ioc@{name}
-ExecStartPre=+/bin/chown -R iocuser:iocgroup /run/ioc@{name}
 Type=simple
 ExecStart=/usr/bin/procServ \\
                     --foreground \\
@@ -61,8 +59,9 @@ ExecStart=/usr/bin/procServ \\
 """.format(**opts))
 
     F.write("""                    {command}
-                    
 SyslogIdentifier=ioc@{name}
+RuntimeDirectory=ioc@{name}
+RuntimeDirectoryMode=0755
 """.format(**opts))
 
     if not user:
