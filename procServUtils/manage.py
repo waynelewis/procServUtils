@@ -286,7 +286,12 @@ def writeprocs(conf, args):
     _log.debug('Writing %s', args.out)
     with open(args.out+'.tmp', 'w') as F:
         for name in conf.sections():
+            _log.debug('name =  %s', name)
             opts['name'] = name
+            # Delete any existing tcp_port dict entry
+            if 'tcp_port' in opts.keys():
+                del opts['tcp_port']
+            _log.debug('port_string =  %s', port_string)
             port_string = conf.get(name, 'port')
             if 'tcp:' in port_string:
                 opts['tcp_port'] = port_string.split(':')[1]
@@ -305,6 +310,7 @@ console %(name)s {
 }
 """%opts)
             else:
+                _log.debug('writing uds port')
                 F.write("""    type uds;
     uds %(rundir)s/ioc@%(name)s/control;
 }
